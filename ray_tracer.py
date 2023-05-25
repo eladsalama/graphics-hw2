@@ -66,6 +66,33 @@ def main():
     camera, scene_settings, objects = parse_scene_file(args.scene_file)
 
     # TODO: Implement the ray tracer
+    width, height = args[2], args[3]
+    aspect_ratio = width / height
+    screen_height = camera.screen_width / aspect_ratio
+    pixel_width = camera.screen_width / width
+    pixel_height = screen_height / height
+
+    # basic vectors
+    towards = normalize(np.array(camera.look_at) - np.array(camera.position))  # maybe need to multiply by -1
+    up = normalize(camera.up_vector)
+    right = normalize(np.cross(towards, up))
+    up_perp = normalize(np.cross(right, towards))
+
+    Pc = camera.position + camera.screen_distance * towards  # screen center
+
+    # calculating the pixels positions based on slide 19 of "Lecture 4 - Ray Casting" presentation:
+    j_row = (np.arange(width) - np.floor(width / 2)) * pixel_width
+    j_matrix = np.tile(j_row, (height, 1))
+    j_matrix_3d = np.repeat(j_matrix[:, :, np.newaxis], 3, axis=2)
+
+    i_column = (np.arange(height) - np.floor(height / 2)) * pixel_height
+    i_matrix = np.tile(i_column, (width, 1)).T
+    i_matrix_3d = np.repeat(i_matrix[:, :, np.newaxis], 3, axis=2)
+
+    pixels_positions = Pc + j_matrix_3d * right - i_matrix_3d * up_perp
+
+
+
 
     # Dummy result
     image_array = np.zeros((500, 500, 3))
@@ -73,6 +100,10 @@ def main():
     # Save the output image
     save_image(image_array)
 
+
+def normalize(v):
+    v = np.array(v)
+    return v / np.linalg.norm(v)
 
 if __name__ == '__main__':
     main()
