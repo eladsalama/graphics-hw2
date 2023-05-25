@@ -90,9 +90,15 @@ def main():
     i_matrix_3d = np.repeat(i_matrix[:, :, np.newaxis], 3, axis=2)
 
     pixels_positions = Pc + j_matrix_3d * right - i_matrix_3d * up_perp
-    rays_from_camera = pixels_positions - camera.position
 
+    # calculating the normalized vector rays from the camera to each pixel on the screen
+    rays_from_camera = pixels_positions - camera.position  # tV
+    rays_from_camera_norm = rays_from_camera / np.linalg.norm(rays_from_camera, axis=2)[:, :, np.newaxis]  # V
 
+    # finding the intersection of the ray with all surfaces in the scene
+    for ray in rays_from_camera_norm.reshape(-1, 3):
+        # TODO
+        return
 
     # Dummy result
     image_array = np.zeros((500, 500, 3))
@@ -104,6 +110,44 @@ def main():
 def normalize(v):
     v = np.array(v)
     return v / np.linalg.norm(v)
+
+
+def get_intersection(P0, V, objects):
+    min_t = np.inf
+    min_obj = None
+
+    for obj in objects:
+        if type(obj) == Sphere:  # based on slide 24 of "Lecture 4 - Ray Casting" presentation.
+            O = obj.position  # sphere_center
+            L = O - P0
+
+            t_ca = L.dot(V)
+            if t_ca < 0:
+                return 0, None
+
+            d_squared = L.dot(L) - t_ca ** 2
+            r_squared = obj.radius ** 2
+
+            if d_squared > r_squared:
+                return 0, None
+
+            t_hc = np.sqrt(r_squared - d_squared)
+            t = t_ca - t_hc
+
+        if type(obj) == InfinitePlane:  # based on slide 26 of "Lecture 4 - Ray Casting" presentation.
+            t = -(P0.dot(obj.normal) + obj.offset) / (V.dot(obj.normal))
+
+        if type(obj) == Cube:
+            # TODO: complete intersection in case of object = Cube
+            return
+
+
+        if t < min_t:
+            min_t = t
+            min_obj = obj
+
+    return min_t, min_obj
+
 
 if __name__ == '__main__':
     main()
