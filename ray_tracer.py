@@ -90,7 +90,7 @@ def main():
     i_matrix_3d = np.repeat(i_matrix[:, :, np.newaxis], 3, axis=2)
 
     pixels_positions = Pc + j_matrix_3d * right - i_matrix_3d * up_perp
-
+    rays_from_camera = pixels_positions - camera.position
 
 
 
