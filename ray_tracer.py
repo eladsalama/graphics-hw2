@@ -202,18 +202,15 @@ def calc_specular_reflection(V, N, L, obj, light,material):
     Il = light.specular_intensity*light.color  
 
     R = (2*L).dot(N) - L  # R = (2LN)N - L
-
-    #Id =  Is = Ks*Il*(V.dot(R))**n ?
-    Is = np.multiply(Ks, np.multiply(Il, (V.dot(R))**n))
+    
+    Is = Ks*Il*(V.dot(R))**n 
     return Is
 
 def calc_diffuse_reflection(V, N, L, obj, light,material):
     Kd = material.diffuse_color
     Il =light.color    
 
-    #Id = Kd*(N.dot(L))*Il?
-    Id = np.multiply(Kd, np.multiply(Il, (V.dot(L))))
-
+    Id = Kd*(N.dot(L))*Il
     return Id
 
 
