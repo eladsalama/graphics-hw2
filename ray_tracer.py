@@ -114,8 +114,11 @@ def normalize(v):
 
 
 def get_intersection(P0, V, objects):
+    """ returns the closest intersecting object, the intersecting point (P0+tV),
+        and the outwards normal in the intersection. """
     min_t = np.inf
     min_obj = None
+    min_outwards_normal = [0, 0, 0]
 
     for obj in objects:
         if type(obj) == Sphere:  # based on slide 24 of "Lecture 4 - Ray Casting" presentation.
@@ -134,9 +137,11 @@ def get_intersection(P0, V, objects):
 
             t_hc = np.sqrt(r_squared - d_squared)
             t = t_ca - t_hc
+            outwards_normal = (P0 + t*V) - O
 
         elif type(obj) == InfinitePlane:  # based on slide 26 of "Lecture 4 - Ray Casting" presentation.
             t = -(P0.dot(obj.normal) + obj.offset) / (V.dot(obj.normal))
+            outwards_normal = get_outwards_normal(obj.normal, V)
 
         else:  # type(obj) == Cube
             Nxy = np.array([0, 0, 1])  # Normal of xy
@@ -197,12 +202,37 @@ def get_intersection(P0, V, objects):
                 t = math.inf
             else:  # the first t in T is the distance from the first face of the cube to be hit
                 t = T[0]
+                if t == t1:
+                    outwards_normal = Nyz
+                elif t == t2:
+                    outwards_normal = Nxz
+                elif t == t3:
+                    outwards_normal = Nxy
+                elif t == t4:
+                    outwards_normal = -Nyz
+                elif t == t5:
+                    outwards_normal = -Nxz
+                elif t == t6:
+                    outwards_normal = -Nxy
 
         if t < min_t:
             min_t = t
             min_obj = obj
+            min_outwards_normal = outwards_normal
 
-    return min_t, min_obj
+    return min_obj, min_t, normalize(min_outwards_normal)
+
+
+def get_outwards_normal(surface_normal, incoming_ray):
+    # If the angle between the surface normal and the incoming ray is greater than 90 degrees,
+    # the surface normal is pointing inwards and not outwards.
+    angle = np.arccos(np.dot(surface_normal, incoming_ray))
+    if angle > np.pi / 2:
+        outwards_normal = -surface_normal
+    else:
+        outwards_normal = surface_normal
+
+    return outwards_normal
 
 
 def calc_specular_reflection(V, N, L, light, material):
