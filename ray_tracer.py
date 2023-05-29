@@ -176,7 +176,7 @@ def get_intersection(P0, V, objects):
                 x3, x6 = P0 + t3 * V, P0 + t6 * V
 
             # if the point of intersection has one coordinate higher than max or lower than min,
-            # then the intersetion with the plane is out of the cube. 
+            # then the intersection with the plane is out of the cube.
             # note that if the plane is parallel to xy then there is no need to check the z coordinate and so on.
             if x1[1] > pmax[1] or x1[1] < pmin[1] or x1[2] > pmax[2] or x1[2] < pmin[2]:
                 t1 = -1
@@ -206,21 +206,23 @@ def get_intersection(P0, V, objects):
 
 
 def calc_specular_reflection(V, N, L, light, material):
+    """ send normalized vectors V, N, L """
     Ks = material.specular_color
     n = material.shininess
     Il = light.specular_intensity * light.color
 
-    R = (2 * L).dot(N) - L  # R = (2LN)N - L
+    R = normalize(L - 2 * np.dot(L, N) * N)  # reflection direction
 
-    Is = Ks * Il * (V.dot(R)) ** n
+    Is = Ks * Il * (V.dot(R))**n  # based on slide 45 of "Lecture 4 - Ray Casting" presentation.
     return Is
 
 
-def calc_diffuse_reflection(V, N, L, light, material):
+def calc_diffuse_reflection(N, L, light, material):
+    """ send normalized vectors N, L """
     Kd = material.diffuse_color
     Il = light.color
 
-    Id = Kd * (N.dot(L)) * Il
+    Id = Kd * (N.dot(L)) * Il  # based on slide 42 of "Lecture 4 - Ray Casting" presentation.
     return Id
 
 
