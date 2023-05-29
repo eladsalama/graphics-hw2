@@ -138,79 +138,89 @@ def get_intersection(P0, V, objects):
         elif type(obj) == InfinitePlane:  # based on slide 26 of "Lecture 4 - Ray Casting" presentation.
             t = -(P0.dot(obj.normal) + obj.offset) / (V.dot(obj.normal))
 
-        else: #type(obj) == Cube
-            Nxy=np.array([0,0,1]) #Normal of xy
-            Nxz=np.array([0,1,0]) #Normal of xz
-            Nyz=np.array([1,0,0]) #Normal of yz
+        else:  # type(obj) == Cube
+            Nxy = np.array([0, 0, 1])  # Normal of xy
+            Nxz = np.array([0, 1, 0])  # Normal of xz
+            Nyz = np.array([1, 0, 0])  # Normal of yz
 
-            pmax=obj.position+[obj.scale/2,obj.scale/2,obj.scale/2] # maximal coordinate values in the cube
-            pmin=obj.position-[obj.scale/2,obj.scale/2,obj.scale/2] # minimal coordinate values in the cube
+            pmax = obj.position + [obj.scale / 2, obj.scale / 2, obj.scale / 2]  # maximal coordinate values in the cube
+            pmin = obj.position - [obj.scale / 2, obj.scale / 2, obj.scale / 2]  # minimal coordinate values in the cube
 
-            offset1,offset2,offset3,offset4,offset5,offset6=pmin.dot(Nyz),pmin.dot(Nxz),pmin.dot(Nxy),pmax.dot(-Nyz),pmax.dot(-Nxz),pmax.dot(-Nxy)
-            
-            # xi are the points of intersection,ti are the distances. if  the dot product of V and N is zero then V is parallel to the plane.
-            # if V is parallel to the plane i we set xi and xi+3 to be points with coordinates bigger than pmax and  we set ti and ti+3 to be -1.
-            #else we calculate ti ti+3 xi and xi+3 as if its an infinite plane 
-            if ((V.dot(Nyz))==0):
-                t1,t4,x1,x4=-1,-1,pmax+np.array([1,1,1]),pmax+np.array([1,1,1])
+            offset1, offset2, offset3, offset4, offset5, offset6 = pmin.dot(Nyz), pmin.dot(Nxz), pmin.dot(
+                Nxy), pmax.dot(-Nyz), pmax.dot(-Nxz), pmax.dot(-Nxy)
+
+            # xi are the points of intersection, ti are the distances.
+            # if the dot product of V and N is zero then V is parallel to the plane.
+            # if V is parallel to the plane i we set xi and xi+3 to be points with coordinates bigger than pmax,
+            # and we set ti and ti+3 to be -1.
+            # else, we calculate ti, ti+3 xi and xi+3 as if it is an infinite plane
+            if V.dot(Nyz) == 0:
+                t1, t4, x1, x4 = -1, -1, pmax + np.array([1, 1, 1]), pmax + np.array([1, 1, 1])
             else:
-                 t1=-(P0.dot(Nyz) + offset1)/(V.dot(Nyz));t4=-(P0.dot(-Nyz) + offset4)/(V.dot(-Nyz))
-                 x1,x4=P0+t1*V,P0+t4*V
-            if ((V.dot(Nxz))==0):
-                t2,t5,x2,x5=-1,-1,pmax+np.array([1,1,1]),pmax+np.array([1,1,1]) 
+                t1 = -(P0.dot(Nyz) + offset1) / (V.dot(Nyz))
+                t4 = -(P0.dot(-Nyz) + offset4) / (V.dot(-Nyz))
+                x1, x4 = P0 + t1 * V, P0 + t4 * V
+
+            if V.dot(Nxz) == 0:
+                t2, t5, x2, x5 = -1, -1, pmax + np.array([1, 1, 1]), pmax + np.array([1, 1, 1])
             else:
-                t2=-(P0.dot(Nxz) + offset2)/(V.dot(Nxz)); t5=-(P0.dot(-Nxz) + offset5)/(V.dot(-Nxz))
-                x2,x5=P0+t2*V,P0+t5*V
-            if ((V.dot(Nxy))==0):
-                t3,t6,x3,x6=-1,-1,pmax+np.array([1,1,1]),pmax+np.array([1,1,1])
+                t2 = -(P0.dot(Nxz) + offset2) / (V.dot(Nxz))
+                t5 = -(P0.dot(-Nxz) + offset5) / (V.dot(-Nxz))
+                x2, x5 = P0 + t2 * V, P0 + t5 * V
+
+            if V.dot(Nxy) == 0:
+                t3, t6, x3, x6 = -1, -1, pmax + np.array([1, 1, 1]), pmax + np.array([1, 1, 1])
             else:
-                t3=-(P0.dot(Nxy) + offset3)/(V.dot(Nxy));t6=-(P0.dot(-Nxy) + offset6)/(V.dot(-Nxy))
-                x3,x6=P0+t3*V,P0+t6*V              
-            
-            # if the point of intersection has one coordinate higher than max or lower than min, 
+                t3 = -(P0.dot(Nxy) + offset3) / (V.dot(Nxy))
+                t6 = -(P0.dot(-Nxy) + offset6) / (V.dot(-Nxy))
+                x3, x6 = P0 + t3 * V, P0 + t6 * V
+
+            # if the point of intersection has one coordinate higher than max or lower than min,
             # then the intersetion with the plane is out of the cube. 
             # note that if the plane is parallel to xy then there is no need to check the z coordinate and so on.
-            if (x1[1]>pmax[1] or x1[1]<pmin[1] or x1[2]>pmax[2] or x1[2]<pmin[2]):
-                t1=-1
-            if (x2[0]>pmax[0] or x2[0]<pmin[0] or x2[2]>pmax[2] or x2[2]<pmin[2]):
-                t2=-1
-            if (x3[0]>pmax[0] or x3[0]<pmin[0] or x3[1]>pmax[1] or x3[1]<pmin[1]):
-                t3=-1
-            if (x4[1]>pmax[1] or x4[1]<pmin[1] or x4[2]>pmax[2] or x4[2]<pmin[2]):
-                t4=-1
-            if (x5[0]>pmax[0] or x5[0]<pmin[0] or x5[2]>pmax[2] or x5[2]<pmin[2]):
-                t5=-1
-            if (x6[0]>pmax[0] or x6[0]<pmin[0] or x6[1]>pmax[1] or x6[1]<pmin[1]):
-                t6=-1
-            T=np.array([t1,t2,t3,t4,t5,t6])
-            T=T[np.sort(T >= 0)]
+            if x1[1] > pmax[1] or x1[1] < pmin[1] or x1[2] > pmax[2] or x1[2] < pmin[2]:
+                t1 = -1
+            if x2[0] > pmax[0] or x2[0] < pmin[0] or x2[2] > pmax[2] or x2[2] < pmin[2]:
+                t2 = -1
+            if x3[0] > pmax[0] or x3[0] < pmin[0] or x3[1] > pmax[1] or x3[1] < pmin[1]:
+                t3 = -1
+            if x4[1] > pmax[1] or x4[1] < pmin[1] or x4[2] > pmax[2] or x4[2] < pmin[2]:
+                t4 = -1
+            if x5[0] > pmax[0] or x5[0] < pmin[0] or x5[2] > pmax[2] or x5[2] < pmin[2]:
+                t5 = -1
+            if x6[0] > pmax[0] or x6[0] < pmin[0] or x6[1] > pmax[1] or x6[1] < pmin[1]:
+                t6 = -1
+            T = np.array([t1, t2, t3, t4, t5, t6])
+            T = T[np.sort(T >= 0)]
 
-            if (T.shape[1]==0):#asserts that there is an intersection  
-                t=math.inf
-            else:#the first t in T is the distance from the first face of the cube to be hit
-                t=T[0]
-                
+            if T.shape[1] == 0:  # asserts that there is an intersection
+                t = math.inf
+            else:  # the first t in T is the distance from the first face of the cube to be hit
+                t = T[0]
+
         if t < min_t:
             min_t = t
             min_obj = obj
 
     return min_t, min_obj
 
-def calc_specular_reflection(V, N, L, obj, light,material):
-    Ks =  material.specular_color
-    n = material.shininess  
-    Il = light.specular_intensity*light.color  
 
-    R = (2*L).dot(N) - L  # R = (2LN)N - L
-    
-    Is = Ks*Il*(V.dot(R))**n 
+def calc_specular_reflection(V, N, L, light, material):
+    Ks = material.specular_color
+    n = material.shininess
+    Il = light.specular_intensity * light.color
+
+    R = (2 * L).dot(N) - L  # R = (2LN)N - L
+
+    Is = Ks * Il * (V.dot(R)) ** n
     return Is
 
-def calc_diffuse_reflection(V, N, L, obj, light,material):
-    Kd = material.diffuse_color
-    Il =light.color    
 
-    Id = Kd*(N.dot(L))*Il
+def calc_diffuse_reflection(V, N, L, light, material):
+    Kd = material.diffuse_color
+    Il = light.color
+
+    Id = Kd * (N.dot(L)) * Il
     return Id
 
 
