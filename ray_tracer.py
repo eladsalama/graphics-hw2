@@ -112,23 +112,27 @@ def main():
         for j in range(rays_from_camera_norm.shape[1]):
             ray = rays_from_camera_norm[i][j]
             color = trace_ray(P0, ray, surfaces, lights, materials,
-                              scene_settings.background_color, scene_settings.max_recursions)
+                              scene_settings.background_color, None, scene_settings.max_recursions)
             image_array[i][j] = color
 
+    print(image_array[0][0])
     # Save the output image
     save_image(image_array)
 
 
 def normalize(v):
     v = np.array(v)
-    return v / np.linalg.norm(v)
+
+    if np.linalg.norm(v) != 0:
+        return v / np.linalg.norm(v)
+    return v
 
 
 def get_intersection(P0, V, objects, whitelist):
     """ returns the closest intersecting object, the intersecting point (P0+tV),
         and the outwards normal in the intersection. """
-    min_t = np.inf
     min_obj = None
+    min_t = np.inf
     min_outwards_normal = [0, 0, 0]
 
     for obj in objects:
@@ -141,22 +145,24 @@ def get_intersection(P0, V, objects, whitelist):
 
             t_ca = L.dot(V)
             if t_ca < 0:
-                return None, np.inf, min_outwards_normal
+                continue
 
             d_squared = L.dot(L) - t_ca ** 2
             r_squared = obj.radius ** 2
 
             if d_squared > r_squared:
-                return None, np.inf, min_outwards_normal
+                continue
 
             t_hc = np.sqrt(r_squared - d_squared)
             t = t_ca - t_hc
-            outwards_normal = (P0 + t*V) - O
+            outwards_normal = (P0 + t * V) - O
+            # print(f"sphere. t={t}")
 
         elif type(obj) == InfinitePlane:  # based on slide 26 of "Lecture 4 - Ray Casting" presentation.
             N = normalize(obj.normal)
             t = -(P0.dot(N) + obj.offset) / (V.dot(N))
             outwards_normal = get_outwards_normal(N, V)
+            # print(f"plane. t={t}")
 
         else:  # type(obj) == Cube
             Nxy = np.array([0, 0, 1])  # Normal of xy
@@ -230,6 +236,8 @@ def get_intersection(P0, V, objects, whitelist):
                 elif t == t6:
                     outwards_normal = -Nxy
 
+                # print(f"cube. t={t}")
+
         if t < min_t:
             min_t = t
             min_obj = obj
@@ -241,7 +249,7 @@ def get_intersection(P0, V, objects, whitelist):
 def get_outwards_normal(surface_normal, incoming_ray):
     # If the angle between the surface normal and the incoming ray is greater than 90 degrees,
     # the surface normal is pointing inwards and not outwards.
-    angle = np.arccos(np.dot(surface_normal, incoming_ray))
+    angle = np.arccos(np.dot(surface_normal, -incoming_ray))
     if angle > np.pi / 2:
         outwards_normal = -surface_normal
     else:
@@ -250,11 +258,11 @@ def get_outwards_normal(surface_normal, incoming_ray):
     return outwards_normal
 
 
-def calc_specular_reflection(V, N, L, light, material):
+def calc_specular_reflection(V, N, L, light, light_color, material):
     """ send normalized vectors V, N, L """
-    Ks = material.specular_color
+    Ks = np.array(material.specular_color)
     n = material.shininess
-    Il = light.specular_intensity * light.color
+    Il = np.array(light.specular_intensity) * light_color
 
     R = normalize(L - 2 * np.dot(L, N) * N)  # reflection direction
 
@@ -262,69 +270,86 @@ def calc_specular_reflection(V, N, L, light, material):
     return Is
 
 
-def calc_diffuse_reflection(N, L, light, material):
+def calc_diffuse_reflection(N, L, light_color, material):
     """ send normalized vectors N, L """
-    Kd = material.diffuse_color
-    Il = light.color
+    Kd = np.array(material.diffuse_color)
+    Il = light_color
 
     Id = Kd * (N.dot(L)) * Il  # based on slide 42 of "Lecture 4 - Ray Casting" presentation.
     return Id
 
 
-def trace_ray(P0, V, surfaces, lights, materials, bg_color, recursion_depth):
+def trace_ray(P0, V, surfaces, lights, materials, bg_color, prev_obj, recursion_depth):
     if recursion_depth == 0:
         return 0
 
-    surf, t, N = get_intersection(P0, V, surfaces, [])
+    surf, t, N = get_intersection(P0, V, surfaces, [prev_obj])
 
     if t == np.inf:
+        # print("no intersection")
         return bg_color
 
     mat = materials[surf.material_index - 1]
 
     phong_color = 0
+
     for light in lights:
-        L = normalize((P0 + t*V) - light.position)
+        L = normalize(light.position - (P0 + t * V))
         S = 1
 
-        if np.arccos(np.dot(N, L)) > np.pi / 2:  # when the light doesn't hit the surface directly
+        angle = np.arccos(np.dot(N, L))
+        # print(f"angle of light and normal: {angle}")
+        if angle > np.pi / 2:  # when the light doesn't hit the surface directly
+            # print("the light doesn't hit the surface directly")
             S = 0
 
         objects_inbetween = []
         materials_inbetween = []
+        i = 0
         while S == 1:
-            obj_inbetween = get_intersection(light.position, -L, surfaces, objects_inbetween)[0]
+            obj_inbetween = get_intersection(np.array(light.position), -L, surfaces, objects_inbetween)[0]
             mat_inbetween = materials[obj_inbetween.material_index - 1]
 
             if obj_inbetween == surf:
+                # print("no more objects inbetween")
                 break
 
             if mat_inbetween.transparency == 0:
                 S = 0
 
+            # print("appended object to inbetween", obj_inbetween)
             objects_inbetween.append(obj_inbetween)
             materials_inbetween.append(mat_inbetween)
 
+            i += 1
+
         if S == 1:  # if the light hits the point
-            distorted_light = light.color
+            # print("the light hits the surface directly")
+            distorted_light = np.array(light.color)
             for m in materials_inbetween:  # to is a shortcut for transparent object
+                # print(f"distorting the light with material inbetween: {m}")
                 transparency = m.transparency
                 diffuse = m.diffuse_color
                 specular = m.specular_color
                 reflection = m.reflection_color
 
-                distorted_light = distorted_light * transparency + (diffuse+specular) * (1-transparency) + reflection
+                distorted_light = distorted_light * transparency + (diffuse + specular) * (
+                            1 - transparency) + reflection
 
-                phong_color += calc_diffuse_reflection(N, L, light, m) + calc_specular_reflection(V, N, L, light, m)
+            diffuse_reflection = calc_diffuse_reflection(N, L, distorted_light, mat)
+            specular_reflection = calc_specular_reflection(V, N, L, light, distorted_light, mat)
+            phong_color += diffuse_reflection + specular_reflection
 
     if mat.transparency != 0:  # if transparent
+        # print("object transparent")
         P0_next = P0  # coordinates of next face the ray hits in the object
         if type(surf) == Cube or type(surf) == Sphere:
             epsilon = 0.005
-            t_next = get_intersection(P0 + (t+epsilon)*V, V, surfaces, [])[1]
+            t_next = get_intersection(P0 + (t + epsilon) * V, V, surfaces, [])[1]
+            # print(t_next)
             P0_next = P0 + t_next * V
 
-        behind_color = trace_ray(P0_next, V, surfaces, lights, materials, bg_color, recursion_depth)
+        behind_color = trace_ray(P0_next, V, surfaces, lights, materials, bg_color, surf, recursion_depth)
         transparency = mat.transparency
         diffuse = mat.diffuse_color
         specular = mat.specular_color
@@ -333,14 +358,26 @@ def trace_ray(P0, V, surfaces, lights, materials, bg_color, recursion_depth):
         color = behind_color * transparency + (diffuse + specular) * (1 - transparency) + reflection
         return color
 
-    # reflected ray:
-    P0 = P0 + t*V
-    V = normalize(V - 2 * np.dot(V, N) * N)
-    reflected_color = trace_ray(P0, V, surfaces, lights, materials, bg_color, recursion_depth - 1)
+    else:
+        # reflected ray:
+        P0 = P0 + t * V
+        V = normalize(V - 2 * np.dot(V, N) * N)
+        # print("calculating reflected color")
+        reflected_color = trace_ray(P0, V, surfaces, lights, materials, bg_color, surf, recursion_depth - 1)
 
-    color = reflected_color * mat.reflection_color + phong_color
+        color = reflected_color * np.array(mat.reflection_color) + phong_color
+
+    # print(f"final color {color}")
     return color
 
 
 if __name__ == '__main__':
     main()
+
+# TODO: find out how to compute PHONG (what are all these variables?!?)
+# TODO: why doesnt transparent objects use PHONE formula
+# TODO: fix code:
+# TODO: things that worry me:
+# TODO: 1. לגבי חפצים שקופים, האם הפתרון עם אפסילון עובד. כלומר האם צריך להמשיך כאשר הנקודה ההתחלתית היא הפאה שממנה הקשת יוצאת
+# TODO: 2. בדקנו רק לגבי מישור. צריך לבדוק גם כדור וגם קובייה
+# TODO: soft shadows
