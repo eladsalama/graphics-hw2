@@ -3,6 +3,7 @@ from PIL import Image
 import numpy as np
 import math
 
+import scene_settings
 from camera import Camera
 from light import Light
 from material import Material
@@ -56,18 +57,23 @@ def save_image(image_array):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Python Ray Tracer')
-    parser.add_argument('scene_file', type=str, help='Path to the scene file')
-    parser.add_argument('output_image', type=str, help='Name of the output image file')
-    parser.add_argument('--width', type=int, default=500, help='Image width')
-    parser.add_argument('--height', type=int, default=500, help='Image height')
-    args = parser.parse_args()
+    #parser = argparse.ArgumentParser(description='Python Ray Tracer')
+    #parser.add_argument('scene_file', type=str, help='Path to the scene file')
+    #parser.add_argument('output_image', type=str, help='Name of the output image file')
+    #parser.add_argument('--width', type=int, default=50, help='Image width')
+    #parser.add_argument('--height', type=int, default=50, help='Image height')
+    #args = parser.parse_args()
 
     # Parse the scene file
-    camera, scene_settings, objects = parse_scene_file(args.scene_file)
+    #camera, scene_settings, objects = parse_scene_file(args.scene_file)
+    camera, scene_settings, objects = parse_scene_file(
+        r"C:\Users\Elad\Documents\Python Projects\basics of graphics\hw2\scenes\pool.txt")
 
     # TODO: Implement the ray tracer
-    width, height = args[2], args[3]
+    #width, height = args[2], args[3]
+    width, height = 50, 50
+    image_array = np.zeros((width, height, 3))
+
     aspect_ratio = width / height
     screen_height = camera.screen_width / aspect_ratio
     pixel_width = camera.screen_width / width
@@ -97,12 +103,17 @@ def main():
     rays_from_camera_norm = rays_from_camera / np.linalg.norm(rays_from_camera, axis=2)[:, :, np.newaxis]  # V
 
     # finding the intersection of the ray with all surfaces in the scene
-    for ray in rays_from_camera_norm.reshape(-1, 3):
-        # TODO
-        return
+    P0 = np.array(camera.position)
+    lights = [item for item in objects if isinstance(item, Light)]
+    surfaces = [item for item in objects if isinstance(item, (InfinitePlane, Sphere, Cube))]
+    materials = [item for item in objects if isinstance(item, Material)]
 
-    # Dummy result
-    image_array = np.zeros((500, 500, 3))
+    for i in range(rays_from_camera_norm.shape[0]):
+        for j in range(rays_from_camera_norm.shape[1]):
+            ray = rays_from_camera_norm[i][j]
+            color = trace_ray(P0, ray, surfaces, lights, materials,
+                              scene_settings.background_color, scene_settings.max_recursions)
+            image_array[i][j] = color
 
     # Save the output image
     save_image(image_array)
@@ -113,7 +124,7 @@ def normalize(v):
     return v / np.linalg.norm(v)
 
 
-def get_intersection(P0, V, objects):
+def get_intersection(P0, V, objects, whitelist):
     """ returns the closest intersecting object, the intersecting point (P0+tV),
         and the outwards normal in the intersection. """
     min_t = np.inf
@@ -121,27 +132,31 @@ def get_intersection(P0, V, objects):
     min_outwards_normal = [0, 0, 0]
 
     for obj in objects:
+        if obj in whitelist:
+            continue
+
         if type(obj) == Sphere:  # based on slide 24 of "Lecture 4 - Ray Casting" presentation.
-            O = obj.position  # sphere_center
+            O = np.array(obj.position)  # sphere_center
             L = O - P0
 
             t_ca = L.dot(V)
             if t_ca < 0:
-                return 0, None
+                return None, np.inf, min_outwards_normal
 
             d_squared = L.dot(L) - t_ca ** 2
             r_squared = obj.radius ** 2
 
             if d_squared > r_squared:
-                return 0, None
+                return None, np.inf, min_outwards_normal
 
             t_hc = np.sqrt(r_squared - d_squared)
             t = t_ca - t_hc
             outwards_normal = (P0 + t*V) - O
 
         elif type(obj) == InfinitePlane:  # based on slide 26 of "Lecture 4 - Ray Casting" presentation.
-            t = -(P0.dot(obj.normal) + obj.offset) / (V.dot(obj.normal))
-            outwards_normal = get_outwards_normal(obj.normal, V)
+            N = normalize(obj.normal)
+            t = -(P0.dot(N) + obj.offset) / (V.dot(N))
+            outwards_normal = get_outwards_normal(N, V)
 
         else:  # type(obj) == Cube
             Nxy = np.array([0, 0, 1])  # Normal of xy
@@ -254,6 +269,77 @@ def calc_diffuse_reflection(N, L, light, material):
 
     Id = Kd * (N.dot(L)) * Il  # based on slide 42 of "Lecture 4 - Ray Casting" presentation.
     return Id
+
+
+def trace_ray(P0, V, surfaces, lights, materials, bg_color, recursion_depth):
+    if recursion_depth == 0:
+        return 0
+
+    surf, t, N = get_intersection(P0, V, surfaces, [])
+
+    if t == np.inf:
+        return bg_color
+
+    mat = materials[surf.material_index - 1]
+
+    phong_color = 0
+    for light in lights:
+        L = normalize((P0 + t*V) - light.position)
+        S = 1
+
+        if np.arccos(np.dot(N, L)) > np.pi / 2:  # when the light doesn't hit the surface directly
+            S = 0
+
+        objects_inbetween = []
+        materials_inbetween = []
+        while S == 1:
+            obj_inbetween = get_intersection(light.position, -L, surfaces, objects_inbetween)[0]
+            mat_inbetween = materials[obj_inbetween.material_index - 1]
+
+            if obj_inbetween == surf:
+                break
+
+            if mat_inbetween.transparency == 0:
+                S = 0
+
+            objects_inbetween.append(obj_inbetween)
+            materials_inbetween.append(mat_inbetween)
+
+        if S == 1:  # if the light hits the point
+            distorted_light = light.color
+            for m in materials_inbetween:  # to is a shortcut for transparent object
+                transparency = m.transparency
+                diffuse = m.diffuse_color
+                specular = m.specular_color
+                reflection = m.reflection_color
+
+                distorted_light = distorted_light * transparency + (diffuse+specular) * (1-transparency) + reflection
+
+                phong_color += calc_diffuse_reflection(N, L, light, m) + calc_specular_reflection(V, N, L, light, m)
+
+    if mat.transparency != 0:  # if transparent
+        P0_next = P0  # coordinates of next face the ray hits in the object
+        if type(surf) == Cube or type(surf) == Sphere:
+            epsilon = 0.005
+            t_next = get_intersection(P0 + (t+epsilon)*V, V, surfaces, [])[1]
+            P0_next = P0 + t_next * V
+
+        behind_color = trace_ray(P0_next, V, surfaces, lights, materials, bg_color, recursion_depth)
+        transparency = mat.transparency
+        diffuse = mat.diffuse_color
+        specular = mat.specular_color
+        reflection = mat.reflection_color
+
+        color = behind_color * transparency + (diffuse + specular) * (1 - transparency) + reflection
+        return color
+
+    # reflected ray:
+    P0 = P0 + t*V
+    V = normalize(V - 2 * np.dot(V, N) * N)
+    reflected_color = trace_ray(P0, V, surfaces, lights, materials, bg_color, recursion_depth - 1)
+
+    color = reflected_color * mat.reflection_color + phong_color
+    return color
 
 
 if __name__ == '__main__':
