@@ -263,6 +263,7 @@ def calc_specular_reflection(V, N, L, light, light_color, material):
     Ks = np.array(material.specular_color)
     n = material.shininess
     Il = np.array(light.specular_intensity) * light_color
+    Il = 1
 
     R = normalize(L - 2 * np.dot(L, N) * N)  # reflection direction
 
@@ -274,6 +275,7 @@ def calc_diffuse_reflection(N, L, light_color, material):
     """ send normalized vectors N, L """
     Kd = np.array(material.diffuse_color)
     Il = light_color
+    Il = 1
 
     Id = Kd * (N.dot(L)) * Il  # based on slide 42 of "Lecture 4 - Ray Casting" presentation.
     return Id
@@ -305,7 +307,7 @@ def trace_ray(P0, V, surfaces, lights, materials, bg_color, prev_obj, recursion_
 
         objects_inbetween = []
         materials_inbetween = []
-        i = 0
+
         while S == 1:
             obj_inbetween = get_intersection(np.array(light.position), -L, surfaces, objects_inbetween)[0]
             mat_inbetween = materials[obj_inbetween.material_index - 1]
@@ -320,8 +322,6 @@ def trace_ray(P0, V, surfaces, lights, materials, bg_color, prev_obj, recursion_
             # print("appended object to inbetween", obj_inbetween)
             objects_inbetween.append(obj_inbetween)
             materials_inbetween.append(mat_inbetween)
-
-            i += 1
 
         if S == 1:  # if the light hits the point
             # print("the light hits the surface directly")
@@ -340,6 +340,7 @@ def trace_ray(P0, V, surfaces, lights, materials, bg_color, prev_obj, recursion_
             specular_reflection = calc_specular_reflection(V, N, L, light, distorted_light, mat)
             phong_color += diffuse_reflection + specular_reflection
 
+    behind_color = np.array(bg_color)
     if mat.transparency != 0:  # if transparent
         # print("object transparent")
         P0_next = P0  # coordinates of next face the ray hits in the object
@@ -350,24 +351,16 @@ def trace_ray(P0, V, surfaces, lights, materials, bg_color, prev_obj, recursion_
             P0_next = P0 + t_next * V
 
         behind_color = trace_ray(P0_next, V, surfaces, lights, materials, bg_color, surf, recursion_depth)
-        transparency = mat.transparency
-        diffuse = mat.diffuse_color
-        specular = mat.specular_color
-        reflection = mat.reflection_color
 
-        color = behind_color * transparency + (diffuse + specular) * (1 - transparency) + reflection
-        return color
+    # reflected ray:
+    P0 = P0 + t * V
+    V = normalize(V - 2 * np.dot(V, N) * N)
+    # print("calculating reflected color")
+    reflected_color = trace_ray(P0, V, surfaces, lights, materials, bg_color, surf, recursion_depth - 1)
 
-    else:
-        # reflected ray:
-        P0 = P0 + t * V
-        V = normalize(V - 2 * np.dot(V, N) * N)
-        # print("calculating reflected color")
-        reflected_color = trace_ray(P0, V, surfaces, lights, materials, bg_color, surf, recursion_depth - 1)
+    color = behind_color * mat.transparency + phong_color * (1 - mat.transparency) + reflected_color * np.array(
+        mat.reflection_color)
 
-        color = reflected_color * np.array(mat.reflection_color) + phong_color
-
-    # print(f"final color {color}")
     return color
 
 
