@@ -2,6 +2,7 @@ import argparse
 from PIL import Image
 import numpy as np
 import math
+import random
 
 import scene_settings
 from camera import Camera
@@ -362,6 +363,37 @@ def trace_ray(P0, V, surfaces, lights, materials, bg_color, prev_obj, recursion_
         mat.reflection_color)
 
     return color
+
+def soft_shadows(light,point,surface,nosr,objects,materials):  #  finds the light intensity of a point from a specific light
+    #  nosr = number of shadow rays, surface = where the point is
+    whitelist=np.array([obj for obj in objects if materials[obj.material_index].transparency!=0])
+    # whitelist contains all the transparent objects
+    L=light.position-point
+    si=light.shadow_intensity
+    center=light.position  # the enter of the grid
+    r=light.radius
+    cell_edge=r/nosr  # the edge length of a cell
+    count=0
+    vert_dist=math.sqrt(2*pow(r/2,2))  # the distance between a vertex and the center
+    N=normalize(L)
+    vert=center+vert_dist*N  # one of the verteces of the grid
+    NC=normalize(np.cross(L,vert_dist*N))
+    vertx=center+vert_dist*NC  # a neighbour vertex to vert 
+    verty=center-vert_dist*NC  # a neighbour vertex to vert 
+    edgex=normalize(vertx-vert)  # the normalized vector of an edge of the grid
+    edgey=normalize(verty-vert)  # the normalized vector of an edge of the grid
+    for i in range(nosr):
+        for j in range(nosr):
+            x=random.uniform(i*cell_edge,(i+1)*cell_edge)  # choose a 'x' coordinate of a point in the cell
+            y=random.uniform(j*cell_edge,(j+1)*cell_edge)  # choose a 'y' coordinate of a point in the cell
+            v=vert+x*edgex+y*edgey-point  # translate x,y to x,y,z and find the ray vector
+            wl=np.array([x for x in whitelist])  # reset the whitelist
+            object=get_intersection(point, v, objects, wl)
+            if object[0]==surface:  # the ray hits the point
+                count+=1
+    Il=1-si+si*(count/nosr)  # the light intensity of the point (with this light)
+
+    return Il
 
 
 if __name__ == '__main__':
