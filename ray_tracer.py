@@ -58,20 +58,20 @@ def save_image(image_array):
 
 
 def main():
-    #parser = argparse.ArgumentParser(description='Python Ray Tracer')
-    #parser.add_argument('scene_file', type=str, help='Path to the scene file')
-    #parser.add_argument('output_image', type=str, help='Name of the output image file')
-    #parser.add_argument('--width', type=int, default=50, help='Image width')
-    #parser.add_argument('--height', type=int, default=50, help='Image height')
-    #args = parser.parse_args()
+    # parser = argparse.ArgumentParser(description='Python Ray Tracer')
+    # parser.add_argument('scene_file', type=str, help='Path to the scene file')
+    # parser.add_argument('output_image', type=str, help='Name of the output image file')
+    # parser.add_argument('--width', type=int, default=50, help='Image width')
+    # parser.add_argument('--height', type=int, default=50, help='Image height')
+    # args = parser.parse_args()
 
     # Parse the scene file
-    #camera, scene_settings, objects = parse_scene_file(args.scene_file)
+    # camera, scene_settings, objects = parse_scene_file(args.scene_file)
     camera, scene_settings, objects = parse_scene_file(
         r"C:\Users\Elad\Documents\Python Projects\basics of graphics\hw2\scenes\pool.txt")
 
     # TODO: Implement the ray tracer
-    #width, height = args[2], args[3]
+    # width, height = args[2], args[3]
     width, height = 50, 50
     image_array = np.zeros((width, height, 3))
 
@@ -268,7 +268,7 @@ def calc_specular_reflection(V, N, L, light, light_color, material):
 
     R = normalize(L - 2 * np.dot(L, N) * N)  # reflection direction
 
-    Is = Ks * Il * (V.dot(R))**n  # based on slide 45 of "Lecture 4 - Ray Casting" presentation.
+    Is = Ks * Il * (V.dot(R)) ** n  # based on slide 45 of "Lecture 4 - Ray Casting" presentation.
     return Is
 
 
@@ -335,7 +335,7 @@ def trace_ray(P0, V, surfaces, lights, materials, bg_color, prev_obj, recursion_
                 reflection = m.reflection_color
 
                 distorted_light = distorted_light * transparency + (diffuse + specular) * (
-                            1 - transparency) + reflection
+                        1 - transparency) + reflection
 
             diffuse_reflection = calc_diffuse_reflection(N, L, distorted_light, mat)
             specular_reflection = calc_specular_reflection(V, N, L, light, distorted_light, mat)
@@ -364,53 +364,69 @@ def trace_ray(P0, V, surfaces, lights, materials, bg_color, prev_obj, recursion_
 
     return color
 
-def soft_shadows(light,point,normal,obj,nosr,objects,materials):  #  finds the light intensity of a point from a specific light
-    #  nosr = number of shadow rays 
+
+def soft_shadows(light, point, N, obj, nosr, objects, materials):
+    """ finds the light intensity of a point from a specific light """
+    #  nosr = number of shadow rays
     #  obj = the object where the point is
-    whitelist=np.array([obj for obj in objects if materials[object.material_index].transparency!=0])
+
     # whitelist contains all the transparent objects
-    L=light.position-point
-    N=normalize(L)
-    if get_outwards_normal(normal, -N)!=normal: #  the light is from behind 
+    whitelist = np.array([o for o in objects if (materials[o.material_index - 1].transparency != 0 and o != obj)])
+
+    L = normalize(light.position - point)
+
+    if get_outwards_normal(N, -L) != N:  # the light is from behind
         return 0
-    si=light.shadow_intensity
-    center=light.position  # the enter of the grid
-    r=light.radius
-    cell_edge=r/nosr  # the edge length of a cell
-    count=0
-    vert_dist=math.sqrt(2*pow(r/2,2))  # the distance between a vertex and the center
-    D=N[0]*center[0]+ N[1]*center[1]+ N[2]*center[2]  # Ax+By+Cz=D
-    x,y,z=center[0],center[1],center[2]   # calculate a point on the light's new surface
+
+    si = np.array(light.shadow_intensity)
+    center = np.array(light.position)  # the center of the grid
+    r = np.array(light.radius)
+    cell_edge = r / nosr  # the edge length of a cell in the grid
+
+    count = 0
+    vertex_dist = math.sqrt(2 * (r / 2)**2)  # the distance between a vertex of the grid and the light's center
+
+    # finding a random point (x,y,z) on the grid's plane:
+    D = L * center  # Ax+By+Cz=D
+    x, y, z = center[0], center[1], center[2]
     # if the surface is parallel to xy then z is always the same, and so on. 
-    if N[0]!=0:
-        x=0
-    if N[1]!=0:
-        y=0
-    if N[2]!=0:
-        z=(D-N[0]*x- N[1]*y)/N[2]
-    vect=normalize(center-np.array([x,y,z]))
-    vert=center+vert_dist*vect  # one of the verteces of the grid
-    NC=normalize(np.cross(N,vect)) # a perpendicular vector to both N and vect, it is on the new surface.
-    vertx=center+vert_dist*NC  # a neighbour vertex to vert 
-    verty=center-vert_dist*NC  # a neighbour vertex to vert 
-    edgex=normalize(vertx-vert)  # the normalized vector of an edge of the grid
-    edgey=normalize(verty-vert)  # the normalized vector of an edge of the grid
+    if L[0] != 0:
+        x = 0
+    if L[1] != 0:
+        y = 0
+    if L[2] != 0:
+        z = (D - L[0] * x - L[1] * y) / L[2]
+
+    vect = normalize(center - np.array([x, y, z]))
+    vect_crossed = normalize(np.cross(L, vect))  # a perpendicular vector to both N and vect, it is on the new surface.
+
+    # finding a vertex of the grid and using it to find 2 more neighbouring vertices
+    vertex1 = center + vertex_dist * vect
+    vertex2 = center + vertex_dist * vect_crossed
+    vertex3 = center - vertex_dist * vect_crossed
+
+    edge1 = normalize(vertex2 - vertex1)  # the normalized vector of an edge of the grid
+    edge2 = normalize(vertex3 - vertex1)  # the normalized vector of an edge of the grid
+
     for i in range(nosr):
         for j in range(nosr):
-            x=random.uniform(i*cell_edge,(i+1)*cell_edge)  # choose a 'x' coordinate of a point in the cell
-            y=random.uniform(j*cell_edge,(j+1)*cell_edge)  # choose a 'y' coordinate of a point in the cell
-            v=vert+x*edgex+y*edgey-point  # translate x,y to x,y,z and find the ray vector
-            wl=np.array([x for x in whitelist])  # reset the whitelist
-            object=get_intersection(point, v, objects, wl)
-            if object[0]==obj:  # the ray hits the point
-                count+=1
-    Il=1-si+si*(count/nosr)  # the light intensity of the point (with this light)
+            x = random.uniform(i * cell_edge, (i + 1) * cell_edge)  # choose a 'x' coordinate of a point in the cell
+            y = random.uniform(j * cell_edge, (j + 1) * cell_edge)  # choose a 'y' coordinate of a point in the cell
 
+            point_on_grid = vertex1 + x * edge1 + y * edge2
+            v = normalize(point_on_grid - point)  # translate x,y to x,y,z and find the ray vector
+
+            min_obj = get_intersection(point, v, objects, whitelist)[0]
+
+            if min_obj == obj:  # the ray hits the point
+                count += 1
+
+    Il = 1 - si + si * (count / nosr)  # the light intensity of the point (with this light)
     return Il
 
+
 def get_rgb(color):  # change the color channel interval from 0-1 to 0-255
-    color[:] = [round(255 * c) for c in color]
-  
+    return np.round(255 * np.array(color))
 
 if __name__ == '__main__':
     main()
