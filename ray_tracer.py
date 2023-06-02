@@ -113,7 +113,7 @@ def main():
         for j in range(rays_from_camera_norm.shape[1]):
             ray = rays_from_camera_norm[i][j]
             color = trace_ray(P0, ray, surfaces, lights, materials,
-                              get_rgb(scene_settings.background_color), scene_settings.root_number_shadow_rays,
+                              get_rgb(scene_settings.background_color), int(scene_settings.root_number_shadow_rays),
                               None, scene_settings.max_recursions)
             image_array[i][j] = color
 
@@ -376,10 +376,10 @@ def soft_shadows(light, point, N, obj, nosr, surfaces, materials):
 
     L = normalize(light.position - point)
 
-    if get_outwards_normal(N, -L) != N:  # the light is from behind
+    if not np.array_equal(get_outwards_normal(N, -L), N):  # the light is from behind
         return 0
 
-    si = np.array(light.shadow_intensity)
+    si = np.array(light.shadow_intensity, dtype=float)
     center = np.array(light.position)  # the center of the grid
     r = np.array(light.radius)
     cell_edge = r / nosr  # the edge length of a cell in the grid
@@ -388,8 +388,8 @@ def soft_shadows(light, point, N, obj, nosr, surfaces, materials):
     vertex_dist = math.sqrt(2 * (r / 2)**2)  # the distance between a vertex of the grid and the light's center
 
     # finding a random point (x,y,z) on the grid's plane:
-    D = L * center  # Ax+By+Cz=D
-    x, y, z = center[0], center[1], center[2]
+    D = L.dot(center)  # Ax+By+Cz=D
+    x, y, z = center
     # if the surface is parallel to xy then z is always the same, and so on. 
     if L[0] != 0:
         x = 0
@@ -417,7 +417,7 @@ def soft_shadows(light, point, N, obj, nosr, surfaces, materials):
             point_on_grid = vertex1 + x * edge1 + y * edge2
             v = normalize(point_on_grid - point)  # translate x,y to x,y,z and find the ray vector
 
-            min_obj = get_intersection(point, v, objects, whitelist)[0]
+            min_obj = get_intersection(point, v, surfaces, whitelist)[0]
 
             if min_obj == obj:  # the ray hits the point
                 count += 1
