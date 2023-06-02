@@ -260,23 +260,23 @@ def get_outwards_normal(surface_normal, incoming_ray):
     return outwards_normal
 
 
+def calc_diffuse_reflection(N, L, Il, light_color, material):
+    """ send normalized vectors N, L """
+    Kd = get_rgb(material.diffuse_color)
+
+    Id = Kd * (N.dot(L)) * Il  # based on slide 42 of "Lecture 4 - Ray Casting" presentation.
+    return Id
+
+
 def calc_specular_reflection(V, N, L, Il, light_color, material):
     """ send normalized vectors V, N, L """
-    Ks = np.array(material.specular_color)
+    Ks = get_rgb(material.specular_color)
     n = material.shininess
 
     R = normalize(L - 2 * np.dot(L, N) * N)  # reflection direction
 
     Is = Ks * Il * (V.dot(R)) ** n  # based on slide 45 of "Lecture 4 - Ray Casting" presentation.
     return Is
-
-
-def calc_diffuse_reflection(N, L, Il, light_color, material):
-    """ send normalized vectors N, L """
-    Kd = np.array(material.diffuse_color)
-
-    Id = Kd * (N.dot(L)) * Il  # based on slide 42 of "Lecture 4 - Ray Casting" presentation.
-    return Id
 
 
 def trace_ray(P0, V, surfaces, lights, materials, bg_color, nosr, prev_obj, recursion_depth):
