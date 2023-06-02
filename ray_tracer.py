@@ -162,6 +162,8 @@ def get_intersection(P0, V, objects, whitelist):
 
         elif type(obj) == InfinitePlane:  # based on slide 26 of "Lecture 4 - Ray Casting" presentation.
             N = normalize(obj.normal)
+            if V.dot(N) < 0:
+                N *= -1
             t = -(P0.dot(N) + obj.offset) / (V.dot(N))
             outwards_normal = get_outwards_normal(N, V)
             # print(f"plane. t={t}")
@@ -337,7 +339,8 @@ def trace_ray(P0, V, surfaces, lights, materials, bg_color, nosr, prev_obj, recu
                 distorted_light = distorted_light * transparency + (diffuse + specular) * (
                         1 - transparency) + reflection
 
-            Il = soft_shadows(light, P0 + t*V, N, surf, nosr, surfaces, materials)
+            # Il = soft_shadows(light, P0 + t*V, N, surf, nosr, surfaces, materials)
+            Il = 0.2
             diffuse_reflection = calc_diffuse_reflection(N, L, Il, distorted_light, mat)
             specular_reflection = calc_specular_reflection(V, N, L, Il, distorted_light, mat)
             phong_color += diffuse_reflection + specular_reflection
