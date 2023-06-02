@@ -364,11 +364,14 @@ def trace_ray(P0, V, surfaces, lights, materials, bg_color, prev_obj, recursion_
 
     return color
 
-def soft_shadows(light,point,surface,nosr,objects,materials):  #  finds the light intensity of a point from a specific light
-    #  nosr = number of shadow rays, surface = where the point is
-    whitelist=np.array([obj for obj in objects if materials[obj.material_index].transparency!=0])
+def soft_shadows(light,point,normal,obj,nosr,objects,materials):  #  finds the light intensity of a point from a specific light
+    #  nosr = number of shadow rays 
+    #  obj = the object where the point is
+    whitelist=np.array([obj for obj in objects if materials[object.material_index].transparency!=0])
     # whitelist contains all the transparent objects
     L=light.position-point
+    if get_outwards_normal(normal, -L)!=normal: #  the light is from behind 
+        return 0
     si=light.shadow_intensity
     center=light.position  # the enter of the grid
     r=light.radius
@@ -389,12 +392,15 @@ def soft_shadows(light,point,surface,nosr,objects,materials):  #  finds the ligh
             v=vert+x*edgex+y*edgey-point  # translate x,y to x,y,z and find the ray vector
             wl=np.array([x for x in whitelist])  # reset the whitelist
             object=get_intersection(point, v, objects, wl)
-            if object[0]==surface:  # the ray hits the point
+            if object[0]==obj:  # the ray hits the point
                 count+=1
     Il=1-si+si*(count/nosr)  # the light intensity of the point (with this light)
 
     return Il
 
+def get_rgb(color):  # change the color channel interval from 0-1 to 0-255
+    color[:] = [round(255 * c) for c in color]
+    return
 
 if __name__ == '__main__':
     main()
