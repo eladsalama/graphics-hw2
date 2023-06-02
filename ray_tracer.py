@@ -113,7 +113,8 @@ def main():
         for j in range(rays_from_camera_norm.shape[1]):
             ray = rays_from_camera_norm[i][j]
             color = trace_ray(P0, ray, surfaces, lights, materials,
-                              scene_settings.background_color, None, scene_settings.max_recursions)
+                              get_rgb(scene_settings.background_color), scene_settings.root_number_shadow_rays,
+                              None, scene_settings.max_recursions)
             image_array[i][j] = color
 
     print(image_array[0][0])
@@ -259,12 +260,10 @@ def get_outwards_normal(surface_normal, incoming_ray):
     return outwards_normal
 
 
-def calc_specular_reflection(V, N, L, light, light_color, material):
+def calc_specular_reflection(V, N, L, Il, light_color, material):
     """ send normalized vectors V, N, L """
     Ks = np.array(material.specular_color)
     n = material.shininess
-    Il = np.array(light.specular_intensity) * light_color
-    Il = 1
 
     R = normalize(L - 2 * np.dot(L, N) * N)  # reflection direction
 
@@ -272,17 +271,15 @@ def calc_specular_reflection(V, N, L, light, light_color, material):
     return Is
 
 
-def calc_diffuse_reflection(N, L, light_color, material):
+def calc_diffuse_reflection(N, L, Il, light_color, material):
     """ send normalized vectors N, L """
     Kd = np.array(material.diffuse_color)
-    Il = light_color
-    Il = 1
 
     Id = Kd * (N.dot(L)) * Il  # based on slide 42 of "Lecture 4 - Ray Casting" presentation.
     return Id
 
 
-def trace_ray(P0, V, surfaces, lights, materials, bg_color, prev_obj, recursion_depth):
+def trace_ray(P0, V, surfaces, lights, materials, bg_color, nosr, prev_obj, recursion_depth):
     if recursion_depth == 0:
         return 0
 
@@ -327,7 +324,10 @@ def trace_ray(P0, V, surfaces, lights, materials, bg_color, prev_obj, recursion_
         if S == 1:  # if the light hits the point
             # print("the light hits the surface directly")
             distorted_light = np.array(light.color)
-            for m in materials_inbetween:  # to is a shortcut for transparent object
+
+            # calculating distorted light color - in case there are semi transparent objects between the light source
+            # and the hit point
+            for m in materials_inbetween:
                 # print(f"distorting the light with material inbetween: {m}")
                 transparency = m.transparency
                 diffuse = m.diffuse_color
@@ -337,8 +337,9 @@ def trace_ray(P0, V, surfaces, lights, materials, bg_color, prev_obj, recursion_
                 distorted_light = distorted_light * transparency + (diffuse + specular) * (
                         1 - transparency) + reflection
 
-            diffuse_reflection = calc_diffuse_reflection(N, L, distorted_light, mat)
-            specular_reflection = calc_specular_reflection(V, N, L, light, distorted_light, mat)
+            Il = soft_shadows(light, P0 + t*V, N, surf, nosr, surfaces, materials)
+            diffuse_reflection = calc_diffuse_reflection(N, L, Il, distorted_light, mat)
+            specular_reflection = calc_specular_reflection(V, N, L, Il, distorted_light, mat)
             phong_color += diffuse_reflection + specular_reflection
 
     behind_color = np.array(bg_color)
@@ -351,13 +352,13 @@ def trace_ray(P0, V, surfaces, lights, materials, bg_color, prev_obj, recursion_
             # print(t_next)
             P0_next = P0 + t_next * V
 
-        behind_color = trace_ray(P0_next, V, surfaces, lights, materials, bg_color, surf, recursion_depth)
+        behind_color = trace_ray(P0_next, V, surfaces, lights, materials, bg_color, nosr, surf, recursion_depth)
 
     # reflected ray:
     P0 = P0 + t * V
     V = normalize(V - 2 * np.dot(V, N) * N)
     # print("calculating reflected color")
-    reflected_color = trace_ray(P0, V, surfaces, lights, materials, bg_color, surf, recursion_depth - 1)
+    reflected_color = trace_ray(P0, V, surfaces, lights, materials, bg_color, nosr, surf, recursion_depth - 1)
 
     color = behind_color * mat.transparency + phong_color * (1 - mat.transparency) + reflected_color * np.array(
         mat.reflection_color)
@@ -365,13 +366,13 @@ def trace_ray(P0, V, surfaces, lights, materials, bg_color, prev_obj, recursion_
     return color
 
 
-def soft_shadows(light, point, N, obj, nosr, objects, materials):
+def soft_shadows(light, point, N, obj, nosr, surfaces, materials):
     """ finds the light intensity of a point from a specific light """
     #  nosr = number of shadow rays
     #  obj = the object where the point is
 
     # whitelist contains all the transparent objects
-    whitelist = np.array([o for o in objects if (materials[o.material_index - 1].transparency != 0 and o != obj)])
+    whitelist = np.array([s for s in surfaces if (materials[s.material_index - 1].transparency != 0 and s != obj)])
 
     L = normalize(light.position - point)
 
@@ -421,12 +422,13 @@ def soft_shadows(light, point, N, obj, nosr, objects, materials):
             if min_obj == obj:  # the ray hits the point
                 count += 1
 
-    Il = 1 - si + si * (count / nosr)  # the light intensity of the point (with this light)
+    Il = 1 - si + si * (count / nosr**2)  # the light intensity of the point (with this light)
     return Il
 
 
 def get_rgb(color):  # change the color channel interval from 0-1 to 0-255
     return np.round(255 * np.array(color))
+
 
 if __name__ == '__main__':
     main()
