@@ -370,7 +370,8 @@ def soft_shadows(light,point,normal,obj,nosr,objects,materials):  #  finds the l
     whitelist=np.array([obj for obj in objects if materials[object.material_index].transparency!=0])
     # whitelist contains all the transparent objects
     L=light.position-point
-    if get_outwards_normal(normal, -L)!=normal: #  the light is from behind 
+    N=normalize(L)
+    if get_outwards_normal(normal, -N)!=normal: #  the light is from behind 
         return 0
     si=light.shadow_intensity
     center=light.position  # the enter of the grid
@@ -378,9 +379,18 @@ def soft_shadows(light,point,normal,obj,nosr,objects,materials):  #  finds the l
     cell_edge=r/nosr  # the edge length of a cell
     count=0
     vert_dist=math.sqrt(2*pow(r/2,2))  # the distance between a vertex and the center
-    N=normalize(L)
-    vert=center+vert_dist*N  # one of the verteces of the grid
-    NC=normalize(np.cross(L,vert_dist*N))
+    D=N[0]*center[0]+ N[1]*center[1]+ N[2]*center[2]  # Ax+By+Cz=D
+    x,y,z=center[0],center[1],center[2]   # calculate a point on the light's new surface
+    # if the surface is parallel to xy then z is always the same, and so on. 
+    if N[0]!=0:
+        x=0
+    if N[1]!=0:
+        y=0
+    if N[2]!=0:
+        z=(D-N[0]*x- N[1]*y)/N[2]
+    vect=normalize(center-np.array([x,y,z]))
+    vert=center+vert_dist*vect  # one of the verteces of the grid
+    NC=normalize(np.cross(N,vect)) # a perpendicular vector to both N and vect, it is on the new surface.
     vertx=center+vert_dist*NC  # a neighbour vertex to vert 
     verty=center-vert_dist*NC  # a neighbour vertex to vert 
     edgex=normalize(vertx-vert)  # the normalized vector of an edge of the grid
@@ -400,7 +410,7 @@ def soft_shadows(light,point,normal,obj,nosr,objects,materials):  #  finds the l
 
 def get_rgb(color):  # change the color channel interval from 0-1 to 0-255
     color[:] = [round(255 * c) for c in color]
-    return
+  
 
 if __name__ == '__main__':
     main()
