@@ -50,29 +50,24 @@ def parse_scene_file(file_path):
     return camera, scene_settings, objects
 
 
-def save_image(image_array):
+def save_image(image_array, output_image):
     image = Image.fromarray(np.uint8(image_array))
-
     # Save the image to a file
-    image.save("scenes/Spheres.png")
+    image.save(output_image)
 
 
 def main():
-    # parser = argparse.ArgumentParser(description='Python Ray Tracer')
-    # parser.add_argument('scene_file', type=str, help='Path to the scene file')
-    # parser.add_argument('output_image', type=str, help='Name of the output image file')
-    # parser.add_argument('--width', type=int, default=50, help='Image width')
-    # parser.add_argument('--height', type=int, default=50, help='Image height')
-    # args = parser.parse_args()
+    parser = argparse.ArgumentParser(description='Python Ray Tracer')
+    parser.add_argument('scene_file', type=str, help='Path to the scene file')
+    parser.add_argument('output_image', type=str, help='Name of the output image file')
+    parser.add_argument('--width', type=int, default=50, help='Image width')
+    parser.add_argument('--height', type=int, default=50, help='Image height')
+    args = parser.parse_args()
 
     # Parse the scene file
-    # camera, scene_settings, objects = parse_scene_file(args.scene_file)
-    camera, scene_settings, objects = parse_scene_file(
-        r"C:\Users\Elad\Documents\Python Projects\basics of graphics\hw2\scenes\pool.txt")
+    camera, scene_settings, objects = parse_scene_file(args.scene_file)
 
-    # TODO: Implement the ray tracer
-    # width, height = args[2], args[3]
-    width, height = 50, 50
+    width, height = args.width, args.height
     image_array = np.zeros((width, height, 3))
 
     aspect_ratio = width / height
@@ -81,10 +76,10 @@ def main():
     pixel_height = screen_height / height
 
     # basic vectors
-    towards = normalize(np.array(camera.look_at) - np.array(camera.position))  # maybe need to multiply by -1
+    towards = normalize(np.array(camera.look_at) - np.array(camera.position))
     up = normalize(camera.up_vector)
-    right = normalize(np.cross(towards, up))
-    up_perp = normalize(np.cross(right, towards))
+    right = normalize(np.cross(up, towards))
+    up_perp = normalize(np.cross(towards, right))
 
     Pc = camera.position + camera.screen_distance * towards  # screen center
 
@@ -119,7 +114,7 @@ def main():
 
     print(image_array[0][0])
     # Save the output image
-    save_image(image_array)
+    save_image(image_array, args.output_image)
 
 
 def normalize(v):
