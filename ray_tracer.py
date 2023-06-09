@@ -107,10 +107,10 @@ def main():
     for i in range(rays_from_camera_norm.shape[0]):
         for j in range(rays_from_camera_norm.shape[1]):
             ray = rays_from_camera_norm[i][j]
-            color = trace_ray(P0, ray, surfaces, lights, materials,
-                              get_rgb(scene_settings.background_color), int(scene_settings.root_number_shadow_rays),
-                              None, scene_settings.max_recursions)
-            image_array[i][j] = np.array([255 if color[x] > 255 else 0 if color[x] < 0 else color[x] for x in range(3)])
+            image_array[i][j] = trace_ray(P0, ray, surfaces, lights, materials,
+                                          get_rgb(scene_settings.background_color),
+                                          int(scene_settings.root_number_shadow_rays),
+                                          None, scene_settings.max_recursions)
 
     print(image_array[0][0])
     # Save the output image
@@ -257,22 +257,22 @@ def get_outwards_normal(surface_normal, incoming_ray):
     return outwards_normal
 
 
-def calc_diffuse_reflection(N, L, Il, light_color, material):
+def calc_diffuse_reflection(N, L, Il, material):
     """ send normalized vectors N, L """
     Kd = get_rgb(material.diffuse_color)
 
-    Id = light_color * Kd * (N.dot(L)) * Il  # based on slide 42 of "Lecture 4 - Ray Casting" presentation.
+    Id = Kd * (N.dot(L)) * Il  # based on slide 42 of "Lecture 4 - Ray Casting" presentation.
     return Id
 
 
-def calc_specular_reflection(V, N, L, Il, light_color, material, speci):
+def calc_specular_reflection(V, N, L, Il, material):
     """ send normalized vectors V, N, L """
     Ks = get_rgb(material.specular_color)
     n = material.shininess
 
     R = normalize(L - 2 * np.dot(L, N) * N)  # reflection direction
 
-    Is = speci * light_color * Ks * Il * (V.dot(R)) ** n  # based on slide 45 of "Lecture 4 - Ray Casting" presentation.
+    Is = Ks * Il * (V.dot(R)) ** n  # based on slide 45 of "Lecture 4 - Ray Casting" presentation.
     return Is
 
 
@@ -320,26 +320,28 @@ def trace_ray(P0, V, surfaces, lights, materials, bg_color, nosr, prev_obj, recu
 
         if S == 1:  # if the light hits the point
             # print("the light hits the surface directly")
-            distorted_light = np.array(light.color)
+            # distorted_light = np.array(light.color)
 
             # calculating distorted light color - in case there are semi transparent objects between the light source
             # and the hit point
-            for m in materials_inbetween:
-                # print(f"distorting the light with material inbetween: {m}")
-                transparency = m.transparency
-                diffuse = m.diffuse_color
-                specular = m.specular_color
-                reflection = m.reflection_color
+            # for m in materials_inbetween:
+            #    # print(f"distorting the light with material inbetween: {m}")
+            #    transparency = m.transparency
+            #    diffuse = m.diffuse_color
+            #    specular = m.specular_color
+            #    reflection = m.reflection_color
+            #
+            #    distorted_light = distorted_light * transparency + (diffuse + specular) * (
+            #            1 - transparency) + reflection
 
-                distorted_light = distorted_light * transparency + (diffuse + specular) * (
-                        1 - transparency) + reflection
+            Il = soft_shadows(light, P0 + t*V, N, surf, nosr, surfaces, materials)
+            #Il = 0.5
+            diffuse_reflection = calc_diffuse_reflection(N, L, Il, mat)
+            specular_reflection = calc_specular_reflection(V, N, L, Il, mat)
+            phong_color += (diffuse_reflection + specular_reflection * np.array(light.specular_intensity)) \
+                           * np.array(light.color)
 
-            speci = light.specular_intensity #  specular intensity
-            # Il = soft_shadows(light, P0 + t*V, N, surf, nosr, surfaces, materials)
-            Il = 0.2
-            diffuse_reflection = calc_diffuse_reflection(N, L, Il, distorted_light, mat)
-            specular_reflection = calc_specular_reflection(V, N, L, Il, distorted_light, mat, speci)
-            phong_color += diffuse_reflection + specular_reflection
+    phong_color = np.maximum(np.minimum(phong_color, [255, 255, 255]), [0, 0, 0])
 
     behind_color = np.array(bg_color)
     if mat.transparency != 0:  # if transparent
@@ -362,6 +364,7 @@ def trace_ray(P0, V, surfaces, lights, materials, bg_color, nosr, prev_obj, recu
     color = behind_color * mat.transparency + phong_color * (1 - mat.transparency) + reflected_color * np.array(
         mat.reflection_color)
 
+    color = np.maximum(np.minimum(color, [255, 255, 255]), [0, 0, 0])
     return color
 
 
@@ -384,10 +387,10 @@ def soft_shadows(light, point, N, obj, nosr, surfaces, materials):
     cell_edge = r / nosr  # the edge length of a cell in the grid
 
     count = 0
-    vertex_dist = math.sqrt(2 * (r / 2)**2)  # the distance between a vertex of the grid and the light's center
+    vertex_dist = math.sqrt(2 * (r / 2) ** 2)  # the distance between a vertex of the grid and the light's center
 
     # finding a random point (x,y,z) on the grid's plane:
-    D = L.dot(center)  # Ax+By+Cz=D
+    D = L.dot(center)
     x, y, z = center
     # if the surface is parallel to xy then z is always the same, and so on. 
     if L[0] != 0:
@@ -414,14 +417,14 @@ def soft_shadows(light, point, N, obj, nosr, surfaces, materials):
             y = random.uniform(j * cell_edge, (j + 1) * cell_edge)  # choose a 'y' coordinate of a point in the cell
 
             point_on_grid = vertex1 + x * edge1 + y * edge2
-            v = normalize(point_on_grid - point)  # translate x,y to x,y,z and find the ray vector
+            v = normalize(point - point_on_grid)  # translate x,y to x,y,z and find the ray vector
 
-            min_obj = get_intersection(point, v, surfaces, whitelist)[0]
+            min_obj = get_intersection(point_on_grid, v, surfaces, whitelist)[0]
 
             if min_obj == obj:  # the ray hits the point
                 count += 1
 
-    Il = 1 - si + si * (count / nosr**2)  # the light intensity of the point (with this light)
+    Il = 1 - si + si * (count / nosr ** 2)  # the light intensity of the point (with this light)
     return Il
 
 
@@ -433,8 +436,6 @@ if __name__ == '__main__':
     main()
 
 # TODO: find out how to compute PHONG (what are all these variables?!?)
-# TODO: why doesnt transparent objects use PHONE formula
-# TODO: fix code:
 # TODO: things that worry me:
 # TODO: 1. לגבי חפצים שקופים, האם הפתרון עם אפסילון עובד. כלומר האם צריך להמשיך כאשר הנקודה ההתחלתית היא הפאה שממנה הקשת יוצאת
 # TODO: 2. בדקנו רק לגבי מישור. צריך לבדוק גם כדור וגם קובייה
