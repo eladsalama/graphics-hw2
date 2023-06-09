@@ -168,8 +168,8 @@ def get_intersection(P0, V, objects, whitelist):
             Nxz = np.array([0, 1, 0])  # Normal of xz
             Nyz = np.array([1, 0, 0])  # Normal of yz
 
-            pmax = obj.position + [obj.scale / 2, obj.scale / 2, obj.scale / 2]  # maximal coordinate values in the cube
-            pmin = obj.position - [obj.scale / 2, obj.scale / 2, obj.scale / 2]  # minimal coordinate values in the cube
+            pmax = np.array(obj.position) + (np.array(obj.scale) / 2)  # maximal coordinate values in the cube
+            pmin = np.array(obj.position) - (np.array(obj.scale) / 2)  # minimal coordinate values in the cube
 
             offset1, offset2, offset3, offset4, offset5, offset6 = pmin.dot(Nyz), pmin.dot(Nxz), pmin.dot(
                 Nxy), pmax.dot(-Nyz), pmax.dot(-Nxz), pmax.dot(-Nxy)
@@ -218,7 +218,7 @@ def get_intersection(P0, V, objects, whitelist):
             T = np.array([t1, t2, t3, t4, t5, t6])
             T = T[np.sort(T >= 0)]
 
-            if T.shape[1] == 0:  # asserts that there is an intersection
+            if len(T) == 0:  # asserts that there is an intersection
                 t = math.inf
             else:  # the first t in T is the distance from the first face of the cube to be hit
                 t = T[0]
@@ -315,7 +315,8 @@ def trace_ray(P0, V, surfaces, lights, materials, bg_color, nosr, prev_obj, recu
             objects_inbetween.append(obj_inbetween)
             transparencies_inbetween.append(mat_inbetween.transparency)
 
-        Il = soft_shadows(light, P0 + t*V, N, surf, nosr, surfaces, materials)
+        # Il = soft_shadows(light, P0 + t*V, N, surf, nosr, surfaces, materials)
+        Il = 0.5
         if S == 1:
             Il *= np.prod(transparencies_inbetween)  # Bonus
 
