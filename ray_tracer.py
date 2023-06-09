@@ -153,7 +153,6 @@ def get_intersection(P0, V, objects, whitelist):
             t_hc = np.sqrt(r_squared - d_squared)
             t = t_ca - t_hc
             outwards_normal = (P0 + t * V) - O
-            # print(f"sphere. t={t}")
 
         elif type(obj) == InfinitePlane:  # based on slide 26 of "Lecture 4 - Ray Casting" presentation.
             N = normalize(obj.normal)
@@ -161,81 +160,41 @@ def get_intersection(P0, V, objects, whitelist):
                 N *= -1
             t = -(P0.dot(N) + obj.offset) / (V.dot(N))
             outwards_normal = get_outwards_normal(N, V)
-            # print(f"plane. t={t}")
 
         else:  # type(obj) == Cube
-            Nxy = np.array([0, 0, 1])  # Normal of xy
-            Nxz = np.array([0, 1, 0])  # Normal of xz
-            Nyz = np.array([1, 0, 0])  # Normal of yz
+            # using the slabs method for render boxes
+            t = np.inf
 
-            pmax = np.array(obj.position) + (np.array(obj.scale) / 2)  # maximal coordinate values in the cube
-            pmin = np.array(obj.position) - (np.array(obj.scale) / 2)  # minimal coordinate values in the cube
+            pos = np.array(obj.position)
+            scale = np.array(obj.scale)
 
-            offset1, offset2, offset3, offset4, offset5, offset6 = pmin.dot(Nyz), pmin.dot(Nxz), pmin.dot(
-                Nxy), pmax.dot(-Nyz), pmax.dot(-Nxz), pmax.dot(-Nxy)
+            pmin = pos - scale / 2  # Minimum coordinate values of the box
+            pmax = pos + scale / 2  # Maximum coordinate values of the box
 
-            # xi are the points of intersection, ti are the distances.
-            # if the dot product of V and N is zero then V is parallel to the plane.
-            # if V is parallel to the plane i we set xi and xi+3 to be points with coordinates bigger than pmax,
-            # and we set ti and ti+3 to be -1.
-            # else, we calculate ti, ti+3 xi and xi+3 as if it is an infinite plane
-            if V.dot(Nyz) == 0:
-                t1, t4, x1, x4 = -1, -1, pmax + np.array([1, 1, 1]), pmax + np.array([1, 1, 1])
-            else:
-                t1 = -(P0.dot(Nyz) + offset1) / (V.dot(Nyz))
-                t4 = -(P0.dot(-Nyz) + offset4) / (V.dot(-Nyz))
-                x1, x4 = P0 + t1 * V, P0 + t4 * V
+            normals = [np.array([0, 0, 1]), np.array([0, 1, 0]), np.array([1, 0, 0]), np.array([0, 0, -1]),
+                       np.array([0, -1, 0]), np.array([-1, 0, 0])]
 
-            if V.dot(Nxz) == 0:
-                t2, t5, x2, x5 = -1, -1, pmax + np.array([1, 1, 1]), pmax + np.array([1, 1, 1])
-            else:
-                t2 = -(P0.dot(Nxz) + offset2) / (V.dot(Nxz))
-                t5 = -(P0.dot(-Nxz) + offset5) / (V.dot(-Nxz))
-                x2, x5 = P0 + t2 * V, P0 + t5 * V
+            with np.errstate(divide='ignore', invalid='ignore'):
+                tmin = (pmin - P0) / V
+                tmax = (pmax - P0) / V
 
-            if V.dot(Nxy) == 0:
-                t3, t6, x3, x6 = -1, -1, pmax + np.array([1, 1, 1]), pmax + np.array([1, 1, 1])
-            else:
-                t3 = -(P0.dot(Nxy) + offset3) / (V.dot(Nxy))
-                t6 = -(P0.dot(-Nxy) + offset6) / (V.dot(-Nxy))
-                x3, x6 = P0 + t3 * V, P0 + t6 * V
+            for i in range(3):
+                if V[i] < 0:
+                    tmin[i], tmax[i] = tmax[i], tmin[i]
 
-            # if the point of intersection has one coordinate higher than max or lower than min,
-            # then the intersection with the plane is out of the cube.
-            # note that if the plane is parallel to xy then there is no need to check the z coordinate and so on.
-            if x1[1] > pmax[1] or x1[1] < pmin[1] or x1[2] > pmax[2] or x1[2] < pmin[2]:
-                t1 = -1
-            if x2[0] > pmax[0] or x2[0] < pmin[0] or x2[2] > pmax[2] or x2[2] < pmin[2]:
-                t2 = -1
-            if x3[0] > pmax[0] or x3[0] < pmin[0] or x3[1] > pmax[1] or x3[1] < pmin[1]:
-                t3 = -1
-            if x4[1] > pmax[1] or x4[1] < pmin[1] or x4[2] > pmax[2] or x4[2] < pmin[2]:
-                t4 = -1
-            if x5[0] > pmax[0] or x5[0] < pmin[0] or x5[2] > pmax[2] or x5[2] < pmin[2]:
-                t5 = -1
-            if x6[0] > pmax[0] or x6[0] < pmin[0] or x6[1] > pmax[1] or x6[1] < pmin[1]:
-                t6 = -1
-            T = np.array([t1, t2, t3, t4, t5, t6])
-            T = T[np.sort(T >= 0)]
+            t_enter = np.max(tmin)
+            t_exit = np.min(tmax)
 
-            if len(T) == 0:  # asserts that there is an intersection
-                t = math.inf
-            else:  # the first t in T is the distance from the first face of the cube to be hit
-                t = T[0]
-                if t == t1:
-                    outwards_normal = Nyz
-                elif t == t2:
-                    outwards_normal = Nxz
-                elif t == t3:
-                    outwards_normal = Nxy
-                elif t == t4:
-                    outwards_normal = -Nyz
-                elif t == t5:
-                    outwards_normal = -Nxz
-                elif t == t6:
-                    outwards_normal = -Nxy
+            if t_enter <= t_exit and t_exit > 0:
+                t = t_enter
 
-                # print(f"cube. t={t}")
+                # finding the corresponding outwards normal
+                if t == tmin[0]:
+                    outwards_normal = normals[0] if V[0] > 0 else -normals[0]
+                elif t == tmin[1]:
+                    outwards_normal = -normals[1] if V[1] > 0 else normals[1]
+                elif t == tmin[2]:
+                    outwards_normal = normals[2] if V[2] > 0 else -normals[2]
 
         if t < min_t:
             min_t = t
@@ -243,7 +202,6 @@ def get_intersection(P0, V, objects, whitelist):
             min_outwards_normal = outwards_normal
 
     return min_obj, min_t, normalize(min_outwards_normal)
-
 
 def get_outwards_normal(surface_normal, incoming_ray):
     # If the angle between the surface normal and the incoming ray is greater than 90 degrees,
@@ -315,8 +273,8 @@ def trace_ray(P0, V, surfaces, lights, materials, bg_color, nosr, prev_obj, recu
             objects_inbetween.append(obj_inbetween)
             transparencies_inbetween.append(mat_inbetween.transparency)
 
-        # Il = soft_shadows(light, P0 + t*V, N, surf, nosr, surfaces, materials)
-        Il = 0.5
+        Il = soft_shadows(light, P0 + t*V, N, surf, nosr, surfaces, materials)
+        #Il = 0.6
         if S == 1:
             Il *= np.prod(transparencies_inbetween)  # Bonus
 
