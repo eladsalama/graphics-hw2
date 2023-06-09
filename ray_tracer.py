@@ -110,7 +110,7 @@ def main():
             color = trace_ray(P0, ray, surfaces, lights, materials,
                               get_rgb(scene_settings.background_color), int(scene_settings.root_number_shadow_rays),
                               None, scene_settings.max_recursions)
-            image_array[i][j] = color
+            image_array[i][j] = np.array([255 if color[x] > 255 else 0 if color[x] < 0 else color[x] for x in range(3)])
 
     print(image_array[0][0])
     # Save the output image
@@ -261,18 +261,18 @@ def calc_diffuse_reflection(N, L, Il, light_color, material):
     """ send normalized vectors N, L """
     Kd = get_rgb(material.diffuse_color)
 
-    Id = Kd * (N.dot(L)) * Il  # based on slide 42 of "Lecture 4 - Ray Casting" presentation.
+    Id = light_color * Kd * (N.dot(L)) * Il  # based on slide 42 of "Lecture 4 - Ray Casting" presentation.
     return Id
 
 
-def calc_specular_reflection(V, N, L, Il, light_color, material):
+def calc_specular_reflection(V, N, L, Il, light_color, material, speci):
     """ send normalized vectors V, N, L """
     Ks = get_rgb(material.specular_color)
     n = material.shininess
 
     R = normalize(L - 2 * np.dot(L, N) * N)  # reflection direction
 
-    Is = Ks * Il * (V.dot(R)) ** n  # based on slide 45 of "Lecture 4 - Ray Casting" presentation.
+    Is = speci * light_color * Ks * Il * (V.dot(R)) ** n  # based on slide 45 of "Lecture 4 - Ray Casting" presentation.
     return Is
 
 
@@ -334,10 +334,11 @@ def trace_ray(P0, V, surfaces, lights, materials, bg_color, nosr, prev_obj, recu
                 distorted_light = distorted_light * transparency + (diffuse + specular) * (
                         1 - transparency) + reflection
 
+            speci = light.specular_intensity #  specular intensity
             # Il = soft_shadows(light, P0 + t*V, N, surf, nosr, surfaces, materials)
             Il = 0.2
             diffuse_reflection = calc_diffuse_reflection(N, L, Il, distorted_light, mat)
-            specular_reflection = calc_specular_reflection(V, N, L, Il, distorted_light, mat)
+            specular_reflection = calc_specular_reflection(V, N, L, Il, distorted_light, mat, speci)
             phong_color += diffuse_reflection + specular_reflection
 
     behind_color = np.array(bg_color)
