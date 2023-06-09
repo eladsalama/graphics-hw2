@@ -292,54 +292,37 @@ def trace_ray(P0, V, surfaces, lights, materials, bg_color, nosr, prev_obj, recu
 
     for light in lights:
         L = normalize(light.position - (P0 + t * V))
-        S = 1
 
         angle = np.arccos(np.dot(N, L))
-        # print(f"angle of light and normal: {angle}")
         if angle > np.pi / 2:  # when the light doesn't hit the surface directly
-            # print("the light doesn't hit the surface directly")
-            S = 0
+            continue
 
+        # Bonus: accounting for cases when there are transparent objects between the light source and the hit point
         objects_inbetween = []
-        materials_inbetween = []
+        transparencies_inbetween = []
 
+        S = 1
         while S == 1:
             obj_inbetween = get_intersection(np.array(light.position), -L, surfaces, objects_inbetween)[0]
             mat_inbetween = materials[obj_inbetween.material_index - 1]
 
-            if obj_inbetween == surf:
-                # print("no more objects inbetween")
+            if obj_inbetween == surf:  # no more objects inbetween
                 break
 
             if mat_inbetween.transparency == 0:
                 S = 0
 
-            # print("appended object to inbetween", obj_inbetween)
             objects_inbetween.append(obj_inbetween)
-            materials_inbetween.append(mat_inbetween)
+            transparencies_inbetween.append(mat_inbetween.transparency)
 
-        if S == 1:  # if the light hits the point
-            # print("the light hits the surface directly")
-            # distorted_light = np.array(light.color)
+        Il = soft_shadows(light, P0 + t*V, N, surf, nosr, surfaces, materials)
+        if S == 1:
+            Il *= np.prod(transparencies_inbetween)  # Bonus
 
-            # calculating distorted light color - in case there are semi transparent objects between the light source
-            # and the hit point
-            # for m in materials_inbetween:
-            #    # print(f"distorting the light with material inbetween: {m}")
-            #    transparency = m.transparency
-            #    diffuse = m.diffuse_color
-            #    specular = m.specular_color
-            #    reflection = m.reflection_color
-            #
-            #    distorted_light = distorted_light * transparency + (diffuse + specular) * (
-            #            1 - transparency) + reflection
-
-            Il = soft_shadows(light, P0 + t*V, N, surf, nosr, surfaces, materials)
-            #Il = 0.5
-            diffuse_reflection = calc_diffuse_reflection(N, L, Il, mat)
-            specular_reflection = calc_specular_reflection(V, N, L, Il, mat)
-            phong_color += (diffuse_reflection + specular_reflection * np.array(light.specular_intensity)) \
-                           * np.array(light.color)
+        diffuse_reflection = calc_diffuse_reflection(N, L, Il, mat)
+        specular_reflection = calc_specular_reflection(V, N, L, Il, mat)
+        phong_color += (diffuse_reflection + specular_reflection * np.array(light.specular_intensity)) \
+                       * np.array(light.color)
 
     phong_color = np.maximum(np.minimum(phong_color, [255, 255, 255]), [0, 0, 0])
 
@@ -434,9 +417,3 @@ def get_rgb(color):  # change the color channel interval from 0-1 to 0-255
 
 if __name__ == '__main__':
     main()
-
-# TODO: find out how to compute PHONG (what are all these variables?!?)
-# TODO: things that worry me:
-# TODO: 1. לגבי חפצים שקופים, האם הפתרון עם אפסילון עובד. כלומר האם צריך להמשיך כאשר הנקודה ההתחלתית היא הפאה שממנה הקשת יוצאת
-# TODO: 2. בדקנו רק לגבי מישור. צריך לבדוק גם כדור וגם קובייה
-# TODO: soft shadows
